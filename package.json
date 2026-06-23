@@ -1,0 +1,29 @@
+{
+  "name": "@apirtc/expo-apirtc-options-plugin",
+  "version": "0.0.7",
+  "description": "Plugin Expo pour ajouter les features apiRTC dans une application React Native",
+  "main": "index.js",
+  "keywords": [
+    "expo",
+    "config-plugin",
+    "react-native",
+    "webrtc",
+    "apiRTC"
+  ],
+  "author": "F.Luart",
+  "license": "MIT",
+  "dependencies": {
+    "@expo/config-plugins": "^10.1.2",
+    "@types/node": "^24.0.12",
+    "typescript": "^5.8.3"
+  },
+  "scripts": {
+    "build": "tsc && npm run copy-static",
+    "copy-static": "mkdir -p ./build/static && cp -R ./plugin/static/* ./build/static"
+  },
+  "files": [
+    "index.js",
+    "build"
+  ],
+  "types": "./build/plugin/withWebRTCOptions.d.ts"
+}
