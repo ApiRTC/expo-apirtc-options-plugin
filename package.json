@@ -12,6 +12,11 @@
   ],
   "author": "F.Luart",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ApiRTC/expo-apirtc-options-plugin.git"
+  },
+  "homepage": "https://github.com/ApiRTC/expo-apirtc-options-plugin#readme",
   "dependencies": {
     "@expo/config-plugins": "^10.1.2",
     "@types/node": "^24.0.12",
