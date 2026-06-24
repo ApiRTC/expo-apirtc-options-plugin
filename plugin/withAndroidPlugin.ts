@@ -1,6 +1,7 @@
-import { ConfigPlugin, withAndroidManifest, withMainApplication, withAppBuildGradle } from '@expo/config-plugins';
+import { ConfigPlugin, withAndroidManifest, withMainApplication, withMainActivity, withAppBuildGradle } from '@expo/config-plugins';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from './logger';
 
 type PluginProps = {
   enableMediaProjectionService?: boolean;
@@ -36,7 +37,27 @@ function getAndroidPackagePath(projectRoot: string): string {
     }
   }
 
-  // Fallback: lire dans app.json
+  // Fallback: read from app.config.ts or app.config.js
+  if (!packageName) {
+    const configFiles = ['app.config.ts', 'app.config.js'];
+    for (const configFile of configFiles) {
+      const configPath = path.join(projectRoot, configFile);
+      if (fs.existsSync(configPath)) {
+        const configContent = fs.readFileSync(configPath, 'utf8');
+        // Match android.package in various forms:
+        // - package: "com.example.app"
+        // - package: 'com.example.app'
+        // - "package": "com.example.app"
+        const match = configContent.match(/["']?package["']?\s*[:=]\s*["']([\w.]+)["']/);
+        if (match) {
+          packageName = match[1];
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback: read from app.json
   if (!packageName) {
     const appJsonPath = path.join(projectRoot, 'app.json');
     if (fs.existsSync(appJsonPath)) {
@@ -46,7 +67,7 @@ function getAndroidPackagePath(projectRoot: string): string {
   }
 
   if (!packageName) {
-    throw new Error('Package name not found in AndroidManifest.xml or app.json');
+    throw new Error('Package name not found in AndroidManifest.xml, app.config.ts, app.config.js or app.json');
   }
 
   return path.join(projectRoot, 'android/app/src/main/java', ...packageName.split('.'));
@@ -79,7 +100,7 @@ function copyAndPatchJavaFiles(projectRoot: string) {
       let content = fs.readFileSync(src, 'utf8');
       content = content.replace(/^package\s+[\w.]+;/m, `package ${packageName};`);
       fs.writeFileSync(dest, content, 'utf8');
-      console.log(`Copied and patched ${file} to android sources with package: ${packageName}`);
+      logger.info(`Copied and patched ${file} to android sources with package: ${packageName}`);
     }
   });
 }
@@ -112,9 +133,9 @@ function copyAndPatchKotlinFiles(projectRoot: string) {
       // Kotlin package declaration has no trailing semicolon
       content = content.replace(/^package\s+[\w.]+/m, `package ${packageName}`);
       fs.writeFileSync(dest, content, 'utf8');
-      console.log(`Copied and patched ${file} to android sources with package: ${packageName}`);
+      logger.info(`Copied and patched ${file} to android sources with package: ${packageName}`);
     } else {
-      console.warn(`Kotlin source not found: ${src}`);
+      logger.warn(`Kotlin source not found: ${src}`);
     }
   });
 }
@@ -127,7 +148,7 @@ const withAndroidPermissions: ConfigPlugin = (config) => {
     }
     REQUIRED_PERMISSIONS.forEach((permission) => {
 
-      console.error('check manifest permission:', permission);
+      logger.debug('check manifest permission:', permission);
 
       if (
         Array.isArray(manifest['uses-permission']) &&
@@ -136,7 +157,7 @@ const withAndroidPermissions: ConfigPlugin = (config) => {
         manifest['uses-permission'].push({
           $: { 'android:name': permission }
         });
-        console.error(`Added permission: ${permission}`);
+        logger.info(`Added permission: ${permission}`);
       }
     });
     return config;
@@ -150,7 +171,7 @@ const withMlKitGradleDep: ConfigPlugin = (config) => {
         /(\s*dependencies\s*\{)/,
         `$1\n    ${MLKIT_SEGMENTATION_DEP}`
       );
-      console.log('Added ML Kit segmentation-selfie dependency to app/build.gradle');
+      logger.info('Added ML Kit segmentation-selfie dependency to app/build.gradle');
     }
     return config;
   });
@@ -158,39 +179,11 @@ const withMlKitGradleDep: ConfigPlugin = (config) => {
 
 const withAndroidPlugin: ConfigPlugin<PluginProps> = (config, props) => {
 
-  console.error('withAndroidPlugin called with props:', props);
+  logger.info('withAndroidPlugin called with props:', props);
 
   let updatedConfig = withMainApplication(config, (config) => {
     const mainApplication = config.modResults;
 
-    if (props.enableMediaProjectionService === false) {
-      console.warn('Media Projection Service is disabled, skipping modifications.');
-      return config;
-    }
-
-    // Add WebRTCModuleOptions import
-    if (!mainApplication.contents.includes('import com.oney.WebRTCModule.WebRTCModuleOptions')) {
-      mainApplication.contents = mainApplication.contents.replace(
-        /(package\s+[\w.]+(?:\r?\n))/,
-        `$1\nimport com.oney.WebRTCModule.WebRTCModuleOptions\n`
-      );
-    }
-
-    // Add WebRTCModuleOptions code at start of onCreate()
-    const onCreateRegex = /override fun onCreate\(\) \{\n/;
-    const customCode = [
-      '    val options: WebRTCModuleOptions = WebRTCModuleOptions.getInstance()',
-      '    options.enableMediaProjectionService = true\n'
-    ].join('\n');
-
-    if (!mainApplication.contents.includes('WebRTCModuleOptions.getInstance()')) {
-      mainApplication.contents = mainApplication.contents.replace(
-        onCreateRegex,
-        match => `${match}${customCode}`
-      );
-    }
-
-    // Add AppLifecyclePackage import and registration
     const packageName = (() => {
       try {
         return getPackageName(config.modRequest.projectRoot);
@@ -199,6 +192,34 @@ const withAndroidPlugin: ConfigPlugin<PluginProps> = (config, props) => {
       }
     })();
 
+    // Add WebRTCModuleOptions (Media Projection Service) if enabled
+    if (props.enableMediaProjectionService !== false) {
+      // Add WebRTCModuleOptions import
+      if (!mainApplication.contents.includes('import com.oney.WebRTCModule.WebRTCModuleOptions')) {
+        mainApplication.contents = mainApplication.contents.replace(
+          /(package\s+[\w.]+(?:\r?\n))/,
+          `$1\nimport com.oney.WebRTCModule.WebRTCModuleOptions\n`
+        );
+      }
+
+      // Add WebRTCModuleOptions code at start of onCreate()
+      const onCreateRegex = /override fun onCreate\(\) \{\n/;
+      const customCode = [
+        '    val options: WebRTCModuleOptions = WebRTCModuleOptions.getInstance()',
+        '    options.enableMediaProjectionService = true\n'
+      ].join('\n');
+
+      if (!mainApplication.contents.includes('WebRTCModuleOptions.getInstance()')) {
+        mainApplication.contents = mainApplication.contents.replace(
+          onCreateRegex,
+          match => `${match}${customCode}`
+        );
+      }
+    } else {
+      logger.info('Media Projection Service is disabled, skipping WebRTCModuleOptions modifications.');
+    }
+
+    // Add AppLifecyclePackage import and registration
     if (packageName) {
       const importLine = `import ${packageName}.AppLifecyclePackage\n`;
       if (!mainApplication.contents.includes(importLine.trim())) {
@@ -251,6 +272,32 @@ const withAndroidPlugin: ConfigPlugin<PluginProps> = (config, props) => {
   }
 
   updatedConfig = withAndroidPermissions(updatedConfig);
+
+  // Fix NullPointerException in ReactActivityDelegate.onUserLeaveHint
+  // This crash occurs when Media Projection permission dialog pauses the activity
+  updatedConfig = withMainActivity(updatedConfig, (config) => {
+    const mainActivity = config.modResults;
+
+    if (!mainActivity.contents.includes('onUserLeaveHint')) {
+      // Add the override before the closing brace of the class
+      const onUserLeaveHintCode = `
+  override fun onUserLeaveHint() {
+    try {
+      super.onUserLeaveHint()
+    } catch (e: NullPointerException) {
+      // Workaround for NPE in ReactActivityDelegate.onUserLeaveHint
+      // when Media Projection permission dialog pauses the activity
+    }
+  }
+`;
+      mainActivity.contents = mainActivity.contents.replace(
+        /\n}\s*$/,
+        `${onUserLeaveHintCode}\n}`
+      );
+    }
+
+    return config;
+  });
 
   return updatedConfig;
 };

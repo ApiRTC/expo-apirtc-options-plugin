@@ -1,6 +1,6 @@
 {
   "name": "@apirtc/expo-apirtc-options-plugin",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Plugin Expo pour ajouter les features apiRTC dans une application React Native",
   "main": "index.js",
   "keywords": [

@@ -36,6 +36,7 @@ Declare the plugin in your `app.json`:
 | `enableMediaProjectionService` | Enable screen sharing on Android (MediaProjection service) | `true` |
 | `enableVideoEffects` | Enable background blur and background image replacement on Android | `true` |
 | `appleTeamId` | Apple Team ID used for the iOS broadcast extension | `"APPLE_TEAM_ID_NOT_SET"` |
+| `logLevel` | Plugin log verbosity: `"silent"`, `"error"`, `"warn"`, `"info"`, `"debug"` | `"warn"` |
 
 ## What does this plugin do?
 

@@ -13,6 +13,7 @@ import plist from '@expo/plist';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as util from 'util';
+import { logger } from './logger';
 
 const quoted = (str: string) => {
   return util.format(`"%s"`, str);
@@ -25,13 +26,13 @@ type PluginProps = {
 
 const withIosBroadcastExtension: ConfigPlugin<PluginProps> = (config, props) => {
 
-    console.log('withIosBroadcastExtension called with props:', props);
+    logger.info('withIosBroadcastExtension called with props:', props);
 
     config = withAppEntitlements(config);
     config = withInfoPlistRTC(config);
     config = withBroadcastExtensionXcodeTarget(config, props);
     config = withBroadcastExtensionPlist(config);
-    //TODO Suite à relire
+    //TODO Review this section
     return config;
 };
 
@@ -133,7 +134,7 @@ type AddXcodeTargetParams = {
     extensionBundleIdentifier: string;
     currentProjectVersion: string;
     marketingVersion: string;
-    appleTeamId?: string; // <-- Ajoute ici
+    appleTeamId?: string;
 };
 
 const addBroadcastExtensionXcodeTarget = (
@@ -149,7 +150,7 @@ const addBroadcastExtensionXcodeTarget = (
     ) => {
 
     if (proj.getFirstProject().firstProject.targets?.length > 1) {
-        console.error("addBroadcastExtensionXcodeTarget targets?.length > 1");
+        logger.error("addBroadcastExtensionXcodeTarget targets?.length > 1");
         return;
     }
   
@@ -216,7 +217,7 @@ const addXCConfigurationList = (
       CLANG_WARN_DOCUMENTATION_COMMENTS: 'YES',
       CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: 'YES',
       CLANG_WARN_UNGUARDED_AVAILABILITY: 'YES_AGGRESSIVE',
-      DEVELOPMENT_TEAM: appleTeamId ? quoted(appleTeamId) : undefined, // <-- Ajoute ici
+      DEVELOPMENT_TEAM: appleTeamId ? quoted(appleTeamId) : undefined,
       CODE_SIGN_ENTITLEMENTS: `${appName}/${appName}.entitlements`,
       CODE_SIGN_STYLE: 'Automatic',
       CURRENT_PROJECT_VERSION: currentProjectVersion,
@@ -557,11 +558,11 @@ const addSourceFiles = (proj: XcodeProject, extensionRootPath: string) => {
     const groupUuid = proj.findPBXGroupKey({ name: 'screenSharing_Extension' });
 
     if (!targetUuid) {
-        console.error(`Failed to find "screenSharing_Extension" target!`);
+        logger.error(`Failed to find "screenSharing_Extension" target!`);
         return;
     }
     if (!groupUuid) {
-        console.error(`Failed to find "screenSharing_Extension" group!`);
+        logger.error(`Failed to find "screenSharing_Extension" group!`);
         return;
     }
     

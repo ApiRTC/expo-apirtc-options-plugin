@@ -2,3 +2,4 @@ node_modules/*
 build/*
 *.tgz
 README_INTERNAL.md
+package-lock.json

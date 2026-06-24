@@ -2,6 +2,7 @@
 import { ConfigPlugin, withXcodeProject } from '@expo/config-plugins';
 import * as path from 'path';
 import * as fs from 'fs';
+import { logger } from './logger';
 
 type PluginProps = {
   enableMediaProjectionService?: boolean;
@@ -28,12 +29,12 @@ function copyNativeFiles(projectRoot: string, iosProjectName: string) {
     const dest = path.join(iosPath, file);
 
     if (!fs.existsSync(src)) {
-      console.warn(`⚠️ Fichier manquant : ${src}`);
+      logger.warn(`File not found: ${src}`);
       continue;
     }
 
     fs.copyFileSync(src, dest);
-    console.log(`📄 Copié : ${file}`);
+    logger.info(`Copied: ${file}`);
   }
 }
 
@@ -46,12 +47,12 @@ function copyBridgingFiles(projectRoot: string, iosProjectName: string) {
     const dest = path.join(iosPath, file);
 
     if (!fs.existsSync(src)) {
-      console.warn(`⚠️ Fichier manquant : ${src}`);
+      logger.warn(`File not found: ${src}`);
       continue;
     }
 
     fs.copyFileSync(src, dest);
-    console.log(`📄 Copié : ${file}`);
+    logger.info(`Copied: ${file}`);
   }
 }
 
@@ -66,14 +67,14 @@ const withNativeFilesPlugin: ConfigPlugin<PluginProps> = (config) => {
     copyNativeFiles(projectRoot, iosProjectName);
     copyBridgingFiles(projectRoot, iosProjectName);
 
-    // Trouve la section Sources (PBXSourcesBuildPhase)
+    // Find the Sources section (PBXSourcesBuildPhase)
     const buildPhases = project.hash.project.objects['PBXSourcesBuildPhase'];
     const buildPhaseEntry = Object.entries(buildPhases).find(
       ([key, val]: [string, any]) =>
         key !== 'isa' && val?.isa === 'PBXSourcesBuildPhase'
     );
     if (!buildPhaseEntry) {
-      throw new Error('❌ PBXSourcesBuildPhase non trouvé dans le projet Xcode.');
+      throw new Error('PBXSourcesBuildPhase not found in Xcode project.');
     }
 
     const [sourcesBuildPhaseUuid, sourcesBuildPhase] = buildPhaseEntry;
@@ -84,7 +85,7 @@ const withNativeFilesPlugin: ConfigPlugin<PluginProps> = (config) => {
       const filePath = path.join(iosDir, iosProjectName, fileName);
 
       if (!fs.existsSync(filePath)) {
-        console.warn(`⚠️  Fichier natif introuvable : ${filePath}`);
+        logger.warn(`Native file not found: ${filePath}`);
         continue;
       }
 
@@ -94,17 +95,17 @@ const withNativeFilesPlugin: ConfigPlugin<PluginProps> = (config) => {
       );
 
       if (!file?.fileRef) {
-        console.warn(`❌ Échec de l'ajout de : ${fileName}`);
+        logger.warn(`Failed to add: ${fileName}`);
         continue;
       }
 
-      // Vérifie s’il est déjà présent
+      // Check if already present
       const alreadyExists = (sourcesBuildPhase as any).files.some(
         (f: any) => f?.comment === `${fileName} in Sources`
       );
       if (alreadyExists) continue;
 
-      // Crée un buildFile
+      // Create a buildFile
       const buildFileUuid = project.generateUuid();
       project.hash.project.objects['PBXBuildFile'][buildFileUuid] = {
         isa: 'PBXBuildFile',
@@ -117,7 +118,7 @@ const withNativeFilesPlugin: ConfigPlugin<PluginProps> = (config) => {
         comment: `${fileName} in Sources`,
       });
 
-      console.log(`✅ Fichier ajouté : ${fileName}`);
+      logger.info(`File added: ${fileName}`);
     }
 
     // Swift config
