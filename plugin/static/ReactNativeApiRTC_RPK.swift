@@ -9,6 +9,7 @@ import Foundation
 import ReplayKit
 import Photos
 import UIKit
+import AVFoundation
 import React
 
 @objc(ReactNativeApiRTC_RPK)
@@ -61,6 +62,15 @@ class ReactNativeApiRTC_RPK: RCTEventEmitter {
     status = "STOP_BROADCAST"
     sendEvent(withName: "onScreenShare", body: status)
     status = "Empty"
+  }
+
+  @objc
+  func showVideoEffectsUI() {
+    if #available(iOS 15.4, *) {
+      DispatchQueue.main.async {
+        AVCaptureDevice.showSystemUserInterface(.videoEffects)
+      }
+    }
   }
 
   //This function is used to send a notification to the extension to stop the broadcast
